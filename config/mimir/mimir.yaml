@@ -1,0 +1,65 @@
+# Mimir monolithic mode with S3 (MinIO) long-term storage.
+target: all
+multitenancy_enabled: false
+
+server:
+  http_listen_port: 9009
+  grpc_listen_port: 9095
+
+common:
+  storage:
+    backend: s3
+    s3:
+      endpoint: minio:9000
+      access_key_id: ${MINIO_ROOT_USER}
+      secret_access_key: ${MINIO_ROOT_PASSWORD}
+      insecure: true
+
+blocks_storage:
+  s3:
+    bucket_name: mimir-blocks
+  bucket_store:
+    sync_dir: /data/tsdb-sync
+  tsdb:
+    dir: /data/tsdb
+
+ruler_storage:
+  s3:
+    bucket_name: mimir-ruler
+
+alertmanager_storage:
+  s3:
+    bucket_name: mimir-alertmanager
+
+compactor:
+  data_dir: /data/compactor
+  sharding_ring:
+    kvstore:
+      store: memberlist
+
+distributor:
+  ring:
+    kvstore:
+      store: memberlist
+
+ingester:
+  ring:
+    kvstore:
+      store: memberlist
+    replication_factor: 1
+
+store_gateway:
+  sharding_ring:
+    replication_factor: 1
+    kvstore:
+      store: memberlist
+
+limits:
+  compactor_blocks_retention_period: 1y   # long-term metric retention
+  max_global_series_per_user: 1000000
+  ingestion_rate: 100000
+  ingestion_burst_size: 200000
+  out_of_order_time_window: 5m
+
+usage_stats:
+  enabled: false

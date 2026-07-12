@@ -1,0 +1,118 @@
+// Grafana Alloy — the single telemetry entry point for all applications.
+//
+// Applications send OTLP (gRPC :4317 / HTTP :4318); browsers send Faro
+// payloads to :12347. Alloy batches, enriches, and fans out to
+// Loki (logs), Tempo (traces), and Mimir (metrics).
+
+// ---------------------------------------------------------------------------
+// OTLP ingest (backend apps: .NET, Laravel, Python, ...)
+// ---------------------------------------------------------------------------
+otelcol.receiver.otlp "default" {
+	grpc {
+		endpoint = "0.0.0.0:4317"
+	}
+
+	http {
+		endpoint = "0.0.0.0:4318"
+
+		cors {
+			allowed_origins = ["*"] // tighten to your app origins in production
+			allowed_headers = ["*"]
+		}
+	}
+
+	output {
+		metrics = [otelcol.processor.memory_limiter.default.input]
+		logs    = [otelcol.processor.memory_limiter.default.input]
+		traces  = [otelcol.processor.memory_limiter.default.input]
+	}
+}
+
+// Protect the collector from unbounded memory growth.
+otelcol.processor.memory_limiter "default" {
+	check_interval = "1s"
+	limit          = "512MiB"
+
+	output {
+		metrics = [otelcol.processor.batch.default.input]
+		logs    = [otelcol.processor.batch.default.input]
+		traces  = [otelcol.processor.batch.default.input]
+	}
+}
+
+// Batch before export — fewer, larger requests to the backends.
+otelcol.processor.batch "default" {
+	send_batch_size = 8192
+	timeout         = "2s"
+
+	output {
+		metrics = [otelcol.exporter.prometheus.mimir.input]
+		logs    = [otelcol.exporter.otlphttp.loki.input]
+		traces  = [otelcol.exporter.otlp.tempo.input]
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Exporters
+// ---------------------------------------------------------------------------
+
+// Traces -> Tempo (OTLP gRPC)
+otelcol.exporter.otlp "tempo" {
+	client {
+		endpoint = "tempo:4317"
+
+		tls {
+			insecure = true
+		}
+	}
+}
+
+// Logs -> Loki native OTLP endpoint
+otelcol.exporter.otlphttp "loki" {
+	client {
+		endpoint = "http://loki:3100/otlp"
+	}
+}
+
+// Metrics -> Mimir via Prometheus remote_write (exemplars enabled so
+// metrics can deep-link into traces).
+otelcol.exporter.prometheus "mimir" {
+	forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+prometheus.remote_write "mimir" {
+	endpoint {
+		url                    = "http://mimir:9009/api/v1/push"
+		send_native_histograms = true
+	}
+}
+
+loki.write "default" {
+	endpoint {
+		url = "http://loki:3100/loki/api/v1/push"
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Faro ingest (browser apps: React)
+// ---------------------------------------------------------------------------
+faro.receiver "frontend" {
+	server {
+		listen_address           = "0.0.0.0"
+		listen_port              = 12347
+		cors_allowed_origins     = ["*"] // tighten to your app origins in production
+		api_key                  = ""    // set + mirror in the Faro SDK for production
+		max_allowed_payload_size = "5MiB"
+
+		rate_limiting {
+			rate = 100
+		}
+	}
+
+	sourcemaps { }
+
+	output {
+		logs   = [loki.write.default.receiver]
+		traces = [otelcol.processor.batch.default.input]
+	}
+}
