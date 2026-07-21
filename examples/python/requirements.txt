@@ -1,0 +1,5 @@
+fastapi>=0.115
+uvicorn>=0.32
+opentelemetry-sdk>=1.29
+opentelemetry-exporter-otlp-proto-grpc>=1.29
+opentelemetry-instrumentation-fastapi>=0.50b0
