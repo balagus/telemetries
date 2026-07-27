@@ -34,6 +34,16 @@ cp .env.example .env    # change credentials for anything non-local
 docker compose up -d
 ```
 
+No Docker available? Every component is a static binary, so the whole stack
+runs without a container runtime:
+
+```bash
+cd bare-metal && ./install.sh && ./stack.sh up
+```
+
+See [`bare-metal/README.md`](bare-metal/README.md). Both paths share the same
+`config/`, so there is only one copy of the pipeline configuration.
+
 | Service | URL | Purpose |
 |---|---|---|
 | Grafana | http://localhost:3000 (admin/admin) | Query, dashboards, correlation |
@@ -72,7 +82,11 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317   # or http://alloy:4317 in-ne
 - **Object storage for everything.** Loki, Tempo, and Mimir all persist
   to S3-compatible storage (MinIO locally, S3/GCS/Azure in production),
   which is what makes long-term retention cheap. Retention: 90d logs,
-  60d traces, 1y metrics — tune in each backend config.
+  60d traces, 1y metrics — tune in each backend config. The Docker-free
+  install can also write to plain local disk, for when there is no object
+  store to hand.
+- **No hard dependency on containers.** Every component is a static binary,
+  so the stack runs identically with or without Docker.
 - **Metrics outlive traces.** Tempo's metrics-generator derives RED
   metrics and service graphs from spans into Mimir, so latency/error
   trends survive long after raw traces expire.
@@ -83,16 +97,26 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317   # or http://alloy:4317 in-ne
 ## Repository layout
 
 ```
-docker-compose.yml            # the whole stack
-config/
+docker-compose.yml            # the whole stack, containerised
+bare-metal/                   # the same stack, as plain binaries (no Docker)
+  install.sh                  #   fetch pinned binaries (mirror/air-gap aware)
+  stack.sh                    #   up / down / status / logs / verify
+  defaults.sh                 #   every port, path and storage setting
+  systemd/                    #   units for a real server
+config/                       # shared by both — one source of truth
   alloy/config.alloy          # collector pipeline (OTLP + Faro → backends)
-  loki/loki.yaml              # logs (TSDB schema, S3, retention)
-  tempo/tempo.yaml            # traces (S3, metrics-generator)
-  mimir/mimir.yaml            # metrics (S3 blocks, 1y retention)
+  loki/loki.yaml              # logs (TSDB schema, object store, retention)
+  tempo/tempo.yaml            # traces (object store, metrics-generator)
+  mimir/mimir.yaml            # metrics (blocks, 1y retention)
   grafana/provisioning/       # datasources with correlation + dashboards
 examples/                     # .NET, Laravel, Python, React
 docs/best-practices.md        # cardinality, sampling, security, scaling
 ```
+
+The config files read their ports, paths and storage backend from the
+environment, which is what lets one set serve both deployments —
+`docker-compose.yml` supplies container values, `bare-metal/defaults.sh`
+supplies single-host ones.
 
 See [docs/best-practices.md](docs/best-practices.md) before running this
 anywhere real — it covers sampling, label cardinality, TLS/auth, data

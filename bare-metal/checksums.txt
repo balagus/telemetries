@@ -1,0 +1,18 @@
+# SHA-256 checksums for the release archives install.sh downloads.
+#
+# Format: <sha256>  <archive filename>
+#
+# Only builds that have actually been downloaded and verified are listed. If
+# your platform is missing, install.sh warns and continues rather than
+# failing — add the entry yourself once you have confirmed the download
+# against the upstream release page, and the check becomes enforcing:
+#
+#     sha256sum <archive> >> checksums.txt
+#
+# Entries must be regenerated whenever a version in defaults.sh changes.
+
+# --- linux/amd64 ---
+dd2dbf4d91a607a87207ffc20ae92370c1b1e22e66688a90f723a11549e8bd69  loki-linux-amd64.zip
+6485aac7a0d849c68a495b3396bc7f1f86598d468e029a993d2dd5e5570fd292  alloy-linux-amd64.zip
+1aac8f70ed6d5e0d27263764a26d0f9ec0f855f4058f8db249ffb7340351abc6  tempo_2.7.0_linux_amd64.tar.gz
+8c778d3a2afb908ef11e4f336f7e1fdc7a13e9050746e28d167f14f2eb57a20b  mimir-linux-amd64

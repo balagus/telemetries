@@ -8,5 +8,5 @@ providers:
     disableDeletion: false
     updateIntervalSeconds: 30
     options:
-      path: /var/lib/grafana/dashboards
+      path: ${GF_DASHBOARDS_PATH}
       foldersFromFilesStructure: true

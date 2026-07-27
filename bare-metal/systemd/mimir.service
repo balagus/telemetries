@@ -1,0 +1,37 @@
+# Managed unit for the telemetry stack's mimir process.
+#
+# Install: see ../README.md, "Running under systemd". The units read every
+# setting from /etc/telemetry/telemetry.env, which is generated from
+# bare-metal/defaults.sh by `./stack.sh systemd-env`.
+
+[Unit]
+Description=Mimir (metrics) for the telemetry stack
+Documentation=https://grafana.com/docs/mimir/latest/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=telemetry
+Group=telemetry
+EnvironmentFile=/etc/telemetry/telemetry.env
+ExecStart=/opt/telemetry/bin/mimir -config.file=/opt/telemetry/config/mimir/mimir.yaml -config.expand-env=true
+Restart=on-failure
+RestartSec=5s
+# Give the storage backends time to flush and close their blocks cleanly;
+# killing them mid-write means replaying the WAL on the next start.
+TimeoutStopSec=120
+
+# The processes only need to write to their own data directory.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# systemd does not expand variables here, so this is literal: keep it in
+# step with DATA_ROOT in /etc/telemetry/telemetry.env.
+ReadWritePaths=/var/lib/telemetry
+# Keep the file-descriptor ceiling high: these are chunk-store writers.
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

@@ -1,51 +1,69 @@
-# Tempo single-binary with S3 (MinIO) long-term storage.
+# Tempo single-binary. Ports, paths and storage backend come from the
+# environment so the same file serves both Docker Compose and the bare-metal
+# install (see bare-metal/env.example.sh). Requires -config.expand-env=true.
 server:
-  http_listen_port: 3200
-  grpc_listen_port: 9095
+  http_listen_port: ${TEMPO_HTTP_PORT}
+  grpc_listen_port: ${TEMPO_GRPC_PORT}
 
 distributor:
   receivers:
     otlp:
       protocols:
         grpc:
-          endpoint: 0.0.0.0:4317
+          endpoint: 0.0.0.0:${TEMPO_OTLP_GRPC_PORT}
         http:
-          endpoint: 0.0.0.0:4318
+          endpoint: 0.0.0.0:${TEMPO_OTLP_HTTP_PORT}
 
+# Exactly one Tempo instance in both deployment modes, so the rings live in
+# memory. This also keeps Tempo off the memberlist port, which on a
+# single bare-metal host would otherwise collide with Mimir.
 ingester:
   max_block_duration: 5m
+  lifecycler:
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
 
 compactor:
+  ring:
+    kvstore:
+      store: inmemory
   compaction:
     block_retention: 1440h           # 60 days of traces; tune per environment
 
 # Generate RED metrics and service graphs from spans, written to Mimir.
 metrics_generator:
+  ring:
+    kvstore:
+      store: inmemory
   registry:
     external_labels:
       source: tempo
   storage:
-    path: /var/tempo/generator/wal
+    path: ${TEMPO_DATA}/generator/wal
     remote_write:
-      - url: http://mimir:9009/api/v1/push
+      - url: ${MIMIR_URL}/api/v1/push
         send_exemplars: true
   traces_storage:
-    path: /var/tempo/generator/traces
+    path: ${TEMPO_DATA}/generator/traces
 
 storage:
   trace:
-    backend: s3
+    backend: ${TEMPO_BACKEND}        # s3 | local
+    # Used when TEMPO_BACKEND=s3; ignored otherwise.
     s3:
-      endpoint: minio:9000
-      bucket: tempo-data
-      access_key: ${MINIO_ROOT_USER}
-      secret_key: ${MINIO_ROOT_PASSWORD}
-      insecure: true
+      endpoint: ${S3_ENDPOINT}
+      bucket: ${TEMPO_S3_BUCKET}
+      access_key: ${S3_ACCESS_KEY}
+      secret_key: ${S3_SECRET_KEY}
+      insecure: ${S3_INSECURE}
       forcepathstyle: true
     wal:
-      path: /var/tempo/wal
+      path: ${TEMPO_DATA}/wal
+    # Used when TEMPO_BACKEND=local; ignored otherwise.
     local:
-      path: /var/tempo/blocks
+      path: ${TEMPO_DATA}/blocks
 
 overrides:
   defaults:

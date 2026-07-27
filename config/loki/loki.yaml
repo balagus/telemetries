@@ -1,14 +1,26 @@
-# Loki single-binary with S3 (MinIO) long-term storage and TSDB index.
+# Loki single-binary. Storage backend and paths come from the environment so
+# the same file serves both Docker Compose and the bare-metal install
+# (see bare-metal/env.example.sh). Requires -config.expand-env=true.
+#
+# NOTE: only plain ${VAR} is used, never ${VAR:-default}. Mimir does not
+# support the default form, so for consistency every variable is set
+# explicitly by whichever launcher starts the process.
 auth_enabled: false
 
 server:
-  http_listen_port: 3100
-  grpc_listen_port: 9096
+  http_listen_port: ${LOKI_HTTP_PORT}
+  grpc_listen_port: ${LOKI_GRPC_PORT}
 
 common:
-  path_prefix: /loki
+  path_prefix: ${LOKI_DATA}
   replication_factor: 1
+  # Address this instance publishes in its rings and to the query scheduler.
+  # Empty means "auto-detect from the default interface", which is right in
+  # Compose. On a host with several NICs auto-detection can pick an address
+  # Loki cannot reach itself on, so the bare-metal install pins it.
+  instance_addr: ${LOKI_INSTANCE_ADDR}
   ring:
+    instance_addr: ${LOKI_INSTANCE_ADDR}
     kvstore:
       store: inmemory
 
@@ -25,7 +37,7 @@ schema_config:
   configs:
     - from: "2024-01-01"
       store: tsdb
-      object_store: s3
+      object_store: ${LOKI_OBJECT_STORE}   # s3 | filesystem
       schema: v13
       index:
         prefix: index_
@@ -33,22 +45,26 @@ schema_config:
 
 storage_config:
   tsdb_shipper:
-    active_index_directory: /loki/index
-    cache_location: /loki/index_cache
+    active_index_directory: ${LOKI_DATA}/index
+    cache_location: ${LOKI_DATA}/index_cache
+  # Used when LOKI_OBJECT_STORE=filesystem; ignored otherwise.
+  filesystem:
+    directory: ${LOKI_DATA}/chunks
+  # Used when LOKI_OBJECT_STORE=s3; ignored otherwise.
   aws:
-    endpoint: http://minio:9000
-    bucketnames: loki-data
-    access_key_id: ${MINIO_ROOT_USER}
-    secret_access_key: ${MINIO_ROOT_PASSWORD}
+    endpoint: ${S3_URL}
+    bucketnames: ${LOKI_S3_BUCKET}
+    access_key_id: ${S3_ACCESS_KEY}
+    secret_access_key: ${S3_SECRET_KEY}
     s3forcepathstyle: true
-    insecure: true
+    insecure: ${S3_INSECURE}
 
 compactor:
-  working_directory: /loki/compactor
+  working_directory: ${LOKI_DATA}/compactor
   compaction_interval: 10m
   retention_enabled: true
   retention_delete_delay: 2h
-  delete_request_store: s3
+  delete_request_store: ${LOKI_OBJECT_STORE}
 
 limits_config:
   retention_period: 2160h            # 90 days; tune per environment
