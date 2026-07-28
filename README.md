@@ -116,7 +116,8 @@ docs/best-practices.md        # cardinality, sampling, security, scaling
 The config files read their ports, paths and storage backend from the
 environment, which is what lets one set serve both deployments —
 `docker-compose.yml` supplies container values, `bare-metal/defaults.sh`
-supplies single-host ones.
+supplies single-host ones. `bare-metal/stack.sh check-config` verifies that
+neither launcher has drifted from what the configs reference.
 
 See [docs/best-practices.md](docs/best-practices.md) before running this
 anywhere real — it covers sampling, label cardinality, TLS/auth, data

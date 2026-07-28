@@ -33,6 +33,7 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4317
 | `./stack.sh status` | Per-component state, PID and health |
 | `./stack.sh logs <c> [-f]` | Tail one component's log |
 | `./stack.sh verify` | Push OTLP through Alloy, read it back from all three backends |
+| `./stack.sh check-config` | Confirm every config variable is supplied by both launchers |
 | `./stack.sh wipe` | Stop and delete all stored telemetry (keeps binaries) |
 | `./stack.sh systemd-env` | Print an `EnvironmentFile` for the systemd units |
 
@@ -43,8 +44,8 @@ all gitignored, all removable.
 
 - Linux or macOS, x86-64 or arm64. On Windows use WSL2.
 - `bash`, `curl` (or `wget`), `tar`, `unzip`.
-- `python3` for `./stack.sh verify` only — standard library, nothing to pip
-  install.
+- `python3` for `./stack.sh verify` and `check-config` only — standard
+  library, nothing to pip install.
 - ~1.5 GB of disk for the binaries. Grafana is most of that; the four Go
   binaries are ~250 MB together.
 
@@ -67,6 +68,20 @@ and you never conflict with an upstream change to `defaults.sh`.
 The same variables drive `docker-compose.yml`, so **`config/` is shared
 between both ways of running the stack** — there is no second copy of the
 Loki, Tempo, Mimir, Alloy or Grafana configuration to keep in sync.
+
+The config files use plain `${VAR}` with no defaults, because Mimir's
+expansion does not support `${VAR:-default}` — it produces an empty string
+instead. An unset variable therefore fails quietly, usually as a backend that
+starts fine and then refuses writes. After adding a setting to any config
+file, run:
+
+```bash
+./stack.sh check-config
+```
+
+It collects every `${VAR}` and `sys.env("VAR")` reference under `config/` and
+verifies both `defaults.sh` and `docker-compose.yml` supply it. Docker is
+optional — the Compose half is skipped with a note if the CLI is absent.
 
 ### Storage: filesystem or S3
 

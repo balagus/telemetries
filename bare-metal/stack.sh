@@ -7,6 +7,7 @@
 #   ./stack.sh status                what is running, and whether it is ready
 #   ./stack.sh logs <component> [-f] tail a component's log
 #   ./stack.sh verify                push test telemetry and read it back
+#   ./stack.sh check-config          confirm every config variable is supplied
 #   ./stack.sh systemd-env           print an EnvironmentFile for the systemd units
 #   ./stack.sh wipe                  stop everything and delete all stored data
 #
@@ -269,6 +270,11 @@ EOF
   echo "# Set GF_SECURITY_ADMIN_PASSWORD here, or leave Grafana's own default."
 }
 
+cmd_check_config() {
+  command -v python3 >/dev/null 2>&1 || die "check-config needs python3 (standard library only)"
+  exec python3 "${BM_HOME}/check-config.py"
+}
+
 cmd_verify() {
   command -v python3 >/dev/null 2>&1 || die "verify needs python3 (standard library only)"
   exec python3 "${BM_HOME}/verify.py"
@@ -288,7 +294,8 @@ case "${1:-}" in
   status)  cmd_status ;;
   logs)    shift; cmd_logs "$@" ;;
   verify)  cmd_verify ;;
+  check-config) cmd_check_config ;;
   systemd-env) cmd_systemd_env ;;
   wipe)    cmd_wipe ;;
-  *)       sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  *)       sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac
