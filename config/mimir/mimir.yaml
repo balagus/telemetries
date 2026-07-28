@@ -1,58 +1,92 @@
-# Mimir monolithic mode with S3 (MinIO) long-term storage.
+# Mimir monolithic mode. Ports, paths and storage backend come from the
+# environment so the same file serves both Docker Compose and the bare-metal
+# install (see bare-metal/env.example.sh). Requires -config.expand-env=true.
+#
+# Mimir's env expansion supports only plain ${VAR} — ${VAR:-default} silently
+# expands to an empty string — so every variable below must be exported.
 target: all
 multitenancy_enabled: false
 
 server:
-  http_listen_port: 9009
-  grpc_listen_port: 9095
+  http_listen_port: ${MIMIR_HTTP_PORT}
+  grpc_listen_port: ${MIMIR_GRPC_PORT}
+
+# Only used when MIMIR_RING_STORE=memberlist. A single-process Mimir does not
+# need a gossip ring, and on a host without a private IP memberlist cannot
+# work out an address to advertise — so the bare-metal install uses
+# 'inmemory' and Compose keeps 'memberlist'.
+memberlist:
+  bind_port: ${MIMIR_MEMBERLIST_PORT}
+  advertise_addr: ${MIMIR_ADVERTISE_ADDR}
 
 common:
   storage:
-    backend: s3
+    backend: ${MIMIR_BACKEND}        # s3 | filesystem
+    # Used when MIMIR_BACKEND=s3; ignored otherwise.
     s3:
-      endpoint: minio:9000
-      access_key_id: ${MINIO_ROOT_USER}
-      secret_access_key: ${MINIO_ROOT_PASSWORD}
-      insecure: true
+      endpoint: ${S3_ENDPOINT}
+      access_key_id: ${S3_ACCESS_KEY}
+      secret_access_key: ${S3_SECRET_KEY}
+      insecure: ${S3_INSECURE}
 
 blocks_storage:
   s3:
-    bucket_name: mimir-blocks
+    bucket_name: ${MIMIR_BLOCKS_BUCKET}
+  filesystem:
+    dir: ${MIMIR_DATA}/blocks
   bucket_store:
-    sync_dir: /data/tsdb-sync
+    sync_dir: ${MIMIR_DATA}/tsdb-sync
   tsdb:
-    dir: /data/tsdb
+    dir: ${MIMIR_DATA}/tsdb
 
 ruler_storage:
   s3:
-    bucket_name: mimir-ruler
+    bucket_name: ${MIMIR_RULER_BUCKET}
+  filesystem:
+    dir: ${MIMIR_DATA}/ruler
 
 alertmanager_storage:
   s3:
-    bucket_name: mimir-alertmanager
+    bucket_name: ${MIMIR_ALERTMANAGER_BUCKET}
+  filesystem:
+    dir: ${MIMIR_DATA}/alertmanager
 
+# MIMIR_INSTANCE_ADDR is the address each component publishes in its ring.
+# Empty means "auto-detect from the default interface", which is right in
+# Compose. On a host with several NICs auto-detection can pick an address
+# Mimir cannot reach itself on, so the bare-metal install pins it.
 compactor:
-  data_dir: /data/compactor
+  data_dir: ${MIMIR_DATA}/compactor
   sharding_ring:
+    instance_addr: ${MIMIR_INSTANCE_ADDR}
     kvstore:
-      store: memberlist
+      store: ${MIMIR_RING_STORE}
 
 distributor:
   ring:
+    instance_addr: ${MIMIR_INSTANCE_ADDR}
     kvstore:
-      store: memberlist
+      store: ${MIMIR_RING_STORE}
 
 ingester:
   ring:
+    instance_addr: ${MIMIR_INSTANCE_ADDR}
     kvstore:
-      store: memberlist
+      store: ${MIMIR_RING_STORE}
     replication_factor: 1
 
 store_gateway:
   sharding_ring:
+    instance_addr: ${MIMIR_INSTANCE_ADDR}
     replication_factor: 1
     kvstore:
-      store: memberlist
+      store: ${MIMIR_RING_STORE}
+
+ruler:
+  ring:
+    instance_addr: ${MIMIR_INSTANCE_ADDR}
+    kvstore:
+      store: ${MIMIR_RING_STORE}
 
 limits:
   compactor_blocks_retention_period: 1y   # long-term metric retention
@@ -60,6 +94,11 @@ limits:
   ingestion_rate: 100000
   ingestion_burst_size: 200000
   out_of_order_time_window: 5m
+
+# Defaults to ./metrics-activity.log, i.e. wherever the process happens to
+# have been started from. Keep it with the rest of Mimir's data.
+activity_tracker:
+  filepath: ${MIMIR_DATA}/metrics-activity.log
 
 usage_stats:
   enabled: false

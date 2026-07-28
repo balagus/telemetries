@@ -1,0 +1,44 @@
+# Grafana is the one component that is not a single binary: it needs the web
+# assets and default configuration that ship alongside it, so the whole
+# extracted tree goes in rather than one file.
+#
+# Build from the REPOSITORY ROOT, after ./bare-metal/install.sh grafana has
+# populated bare-metal/bin/grafana-home:
+#
+#   docker build -f images/Dockerfile.grafana \
+#     --build-arg BASE_IMAGE=registry.example.com/base/ubi9-minimal:9.5 \
+#     -t registry.example.com/telemetry/grafana:11.4.0 .
+#
+# Base image requirements are the same as images/Dockerfile: glibc,
+# ca-certificates if anything is reached over HTTPS, and a shell at build time.
+
+ARG BASE_IMAGE=docker.io/library/debian:12-slim
+FROM ${BASE_IMAGE}
+
+ARG COMPONENT_VERSION=unknown
+ARG RUN_UID=10001
+ARG RUN_GID=10001
+
+LABEL org.opencontainers.image.title="telemetry-grafana" \
+      org.opencontainers.image.version="${COMPONENT_VERSION}" \
+      org.opencontainers.image.description="Upstream Grafana on a locally approved base image" \
+      org.opencontainers.image.source="https://github.com/balagus/telemetries"
+
+COPY bare-metal/bin/grafana-home /usr/share/grafana
+
+# Grafana resolves its plugins, provisioning and data relative to these, and
+# will not start if it cannot write to them.
+ENV GF_PATHS_HOME=/usr/share/grafana \
+    GF_PATHS_DATA=/var/lib/grafana \
+    GF_PATHS_LOGS=/var/log/grafana \
+    GF_PATHS_PLUGINS=/var/lib/grafana/plugins \
+    GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+
+RUN mkdir -p /var/lib/grafana/plugins /var/log/grafana /etc/grafana/provisioning \
+ && chown -R ${RUN_UID}:${RUN_GID} /var/lib/grafana /var/log/grafana /etc/grafana /usr/share/grafana
+
+USER ${RUN_UID}:${RUN_GID}
+WORKDIR /usr/share/grafana
+
+# Matches the upstream image's behaviour: no `command:` needed in Compose.
+ENTRYPOINT ["/usr/share/grafana/bin/grafana", "server"]

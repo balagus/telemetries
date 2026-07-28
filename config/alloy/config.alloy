@@ -56,10 +56,14 @@ otelcol.processor.batch "default" {
 // Exporters
 // ---------------------------------------------------------------------------
 
+// Backend addresses come from the environment so this file serves both the
+// Docker Compose stack (service names) and the bare-metal install
+// (127.0.0.1 with non-colliding ports). See bare-metal/env.example.sh.
+
 // Traces -> Tempo (OTLP gRPC)
 otelcol.exporter.otlp "tempo" {
 	client {
-		endpoint = "tempo:4317"
+		endpoint = sys.env("TEMPO_OTLP_ENDPOINT")
 
 		tls {
 			insecure = true
@@ -70,7 +74,7 @@ otelcol.exporter.otlp "tempo" {
 // Logs -> Loki native OTLP endpoint
 otelcol.exporter.otlphttp "loki" {
 	client {
-		endpoint = "http://loki:3100/otlp"
+		endpoint = sys.env("LOKI_URL") + "/otlp"
 	}
 }
 
@@ -82,14 +86,14 @@ otelcol.exporter.prometheus "mimir" {
 
 prometheus.remote_write "mimir" {
 	endpoint {
-		url                    = "http://mimir:9009/api/v1/push"
+		url                    = sys.env("MIMIR_URL") + "/api/v1/push"
 		send_native_histograms = true
 	}
 }
 
 loki.write "default" {
 	endpoint {
-		url = "http://loki:3100/loki/api/v1/push"
+		url = sys.env("LOKI_URL") + "/loki/api/v1/push"
 	}
 }
 

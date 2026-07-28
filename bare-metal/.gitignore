@@ -1,0 +1,8 @@
+# Downloaded binaries and anything the running stack produces.
+bin/
+data/
+logs/
+run/
+
+# Your local overrides (copy env.example.sh to get started).
+env.sh
