@@ -34,14 +34,25 @@ cp .env.example .env    # change credentials for anything non-local
 docker compose up -d
 ```
 
-No Docker available? Every component is a static binary, so the whole stack
+No Docker available? Every component ships as a binary, so the whole stack
 runs without a container runtime:
 
 ```bash
 cd bare-metal && ./install.sh && ./stack.sh up
 ```
 
-See [`bare-metal/README.md`](bare-metal/README.md). Both paths share the same
+See [`bare-metal/README.md`](bare-metal/README.md).
+
+Restricted to images from an internal registry? Build your own from those
+same binaries on top of a base you are allowed to use, and keep the version
+choice yours:
+
+```bash
+BASE_IMAGE=registry.example.com/base/ubi9-minimal:9.5 \
+REGISTRY=registry.example.com/observability ./images/build.sh --push
+```
+
+See [`images/README.md`](images/README.md). All three paths share the same
 `config/`, so there is only one copy of the pipeline configuration.
 
 | Service | URL | Purpose |
@@ -85,8 +96,9 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317   # or http://alloy:4317 in-ne
   60d traces, 1y metrics — tune in each backend config. The Docker-free
   install can also write to plain local disk, for when there is no object
   store to hand.
-- **No hard dependency on containers.** Every component is a static binary,
-  so the stack runs identically with or without Docker.
+- **No hard dependency on containers.** Every component ships as a prebuilt
+  binary, so the stack runs identically with or without Docker — and those
+  same binaries can be packaged into images you build yourself.
 - **Metrics outlive traces.** Tempo's metrics-generator derives RED
   metrics and service graphs from spans into Mimir, so latency/error
   trends survive long after raw traces expire.
@@ -103,6 +115,10 @@ bare-metal/                   # the same stack, as plain binaries (no Docker)
   stack.sh                    #   up / down / status / logs / verify
   defaults.sh                 #   every port, path and storage setting
   systemd/                    #   units for a real server
+images/                       # build your own images from those binaries
+  Dockerfile                  #   one binary onto an approved base image
+  build.sh                    #   build/tag/push all five components
+  docker-compose.images.yml   #   run the stack on the self-built images
 config/                       # shared by both — one source of truth
   alloy/config.alloy          # collector pipeline (OTLP + Faro → backends)
   loki/loki.yaml              # logs (TSDB schema, object store, retention)

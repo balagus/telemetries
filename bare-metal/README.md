@@ -1,9 +1,14 @@
 # Running the stack without Docker
 
-Every component of this stack ships as a **self-contained static binary**.
-Nothing here needs Docker, a container runtime, or a container registry —
-which makes this the path to take when your organisation only permits
-images from an internal registry that lags upstream.
+Every component of this stack ships as a **prebuilt binary**. Nothing here
+needs Docker, a container runtime, or a container registry — which makes this
+the path to take when your organisation only permits images from an internal
+registry that lags upstream.
+
+(Loki, Tempo and Mimir are statically linked; Alloy links against the system
+glibc, and Grafana brings its own web assets. On any normal Linux or macOS
+install this is invisible — it only matters when choosing a base image, which
+[`../images/README.md`](../images/README.md) covers.)
 
 ```bash
 cd bare-metal
@@ -39,6 +44,11 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4317
 
 Binaries land in `bin/`, data in `data/`, logs in `logs/`, PIDs in `run/` —
 all gitignored, all removable.
+
+Already have the binaries but still need to ship containers? See
+[`../images/README.md`](../images/README.md) — the same binaries can be
+packaged onto a base image your organisation permits, which sidesteps a
+registry that carries only outdated upstream images.
 
 ## Requirements
 

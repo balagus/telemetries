@@ -1,0 +1,32 @@
+# Run the stack on images built by images/build.sh instead of the upstream
+# grafana/* ones. Layer it over the base file:
+#
+#   docker compose -f docker-compose.yml -f images/docker-compose.images.yml up -d
+#
+# Everything else — ports, volumes, environment, dependency order — is
+# inherited unchanged, because the images set an ENTRYPOINT matching the
+# upstream ones. Only the image reference differs.
+#
+# REGISTRY and IMAGE_PREFIX must match what build.sh used; both default the
+# same way, so plain `docker compose ... up` works after a plain `build.sh`.
+#
+# MinIO is deliberately not overridden. It is a third-party image this repo
+# does not build, and it is only used to provide object storage locally — in
+# a restricted environment you would point the backends at your existing
+# object storage instead (STORAGE_BACKEND=s3) and drop these two services.
+
+services:
+  loki:
+    image: ${REGISTRY:-telemetry-stack}/${IMAGE_PREFIX:-telemetry-}loki:${LOKI_VERSION:-3.3.2}
+
+  tempo:
+    image: ${REGISTRY:-telemetry-stack}/${IMAGE_PREFIX:-telemetry-}tempo:${TEMPO_VERSION:-2.7.0}
+
+  mimir:
+    image: ${REGISTRY:-telemetry-stack}/${IMAGE_PREFIX:-telemetry-}mimir:${MIMIR_VERSION:-2.14.2}
+
+  alloy:
+    image: ${REGISTRY:-telemetry-stack}/${IMAGE_PREFIX:-telemetry-}alloy:${ALLOY_VERSION:-1.6.1}
+
+  grafana:
+    image: ${REGISTRY:-telemetry-stack}/${IMAGE_PREFIX:-telemetry-}grafana:${GRAFANA_VERSION:-11.4.0}
